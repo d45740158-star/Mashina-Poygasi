@@ -135,12 +135,12 @@
 
   <div class="overlay" id="startOverlay">
     <h1>🏁 MASHINA POYGASI</h1>
-    <p>3 aylanani birinchi bo'lib tugating. Yo'ldan chiqib ketsangiz, mashina sekinlashadi. Qanday o'ynaysiz?   O'yin Dilshod Nabiyev tomonidan yaratilgan.  Omad tilayman.</p>
+    <p>3 aylanani birinchi bo'lib tugating. Yo'ldan chiqib ketsangiz, mashina sekinlashadi. Qanday o'ynaysiz?</p>
     <div class="btnrow">
       <button class="btn" id="startBotBtn">🤖 BOT BILAN</button>
       <button class="btn secondary" id="startDuelBtn">👥 DO'ST BILAN (SHU QURILMADA)</button>
     </div>
-  </div>t
+  </div>
 
   <div class="overlay hidden" id="endOverlay">
     <h1 id="endTitle">G'ALABA!</h1>
@@ -274,7 +274,9 @@
   function makeCar(startT, lateral, color){
     const p = trackPoint(startT);
     const nx = Math.cos(p.angle + Math.PI/2), ny = Math.sin(p.angle + Math.PI/2);
-    return { x: p.x + nx*lateral, y: p.y + ny*lateral, angle: p.angle, speed: 0, lap: 0, lastIdx: 0, color };
+    const x = p.x + nx*lateral, y = p.y + ny*lateral;
+    const { idx } = nearestIndex(x, y);
+    return { x, y, angle: p.angle, speed: 0, lap: 0, lastIdx: idx, progress: 0, color };
   }
 
   function resetRace(){
@@ -318,9 +320,14 @@
     const { idx, dist } = nearestIndex(car.x, car.y);
     if (dist > HALF_W) car.speed *= (1 - Math.min(0.9, dt*3));
 
-    const prevIdx = car.lastIdx || 0;
-    if (prevIdx > N_WP*0.85 && idx < N_WP*0.15 && car.speed > 0) car.lap += 1;
+    // Track true accumulated progress around the track (handles wraparound both ways),
+    // so reversing near the finish line no longer creates a false extra lap.
+    let delta = idx - car.lastIdx;
+    if (delta > N_WP/2) delta -= N_WP;
+    if (delta < -N_WP/2) delta += N_WP;
+    car.progress += delta;
     car.lastIdx = idx;
+    car.lap = Math.max(0, Math.floor(car.progress / N_WP));
   }
 
   function updateBot(car, dt){
