@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Poyga — Bot yoki Do'st bilan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14;
+    --asphalt:#1C2230;
+    --p1:#E63946;
+    --p2:#3D9BE9;
+    --ink:#F4F1EA;
+    --muted:#8A94A6;
+    --glow:#F2C94C;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:radial-gradient(ellipse at 50% 20%, #10141d 0%, var(--bg) 65%);
+    font-family:'Rajdhani',sans-serif;
+    color:var(--ink);
+    touch-action:none;
+    user-select:none;
+  }
+  #stage{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas{ display:block; background:transparent; max-width:100%; max-height:100%; }
+
+  .hud{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:12px 14px; pointer-events:none; font-family:'Orbitron',sans-serif;
+  }
+  .hud .chip{
+    background:rgba(11,14,20,0.72); border:1px solid rgba(242,201,76,0.3);
+    border-radius:10px; padding:7px 12px; backdrop-filter: blur(4px);
+  }
+  .hud .label{ font-size:9px; letter-spacing:2px; color:var(--muted); }
+  .hud .value{ font-size:17px; font-weight:800; color:var(--ink); }
+  .hud .value.p1{ color:var(--p1); }
+  .hud .value.p2{ color:var(--p2); }
+  #standingChip{ text-align:right; }
+
+  .countdown{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'Orbitron',sans-serif; font-weight:900; font-size:min(20vw,140px);
+    color:var(--glow); text-shadow:0 0 40px rgba(242,201,76,0.6); pointer-events:none;
+  }
+
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(6,8,12,0.88); gap:16px; text-align:center; padding:24px;
+  }
+  .overlay h1{ font-family:'Orbitron',sans-serif; font-size:clamp(20px,5vw,36px); margin:0; letter-spacing:2px; }
+  .overlay p{ margin:0; color:var(--muted); max-width:440px; font-size:15px; line-height:1.5;}
+  .btnrow{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:6px; }
+  .btn{
+    font-family:'Orbitron',sans-serif;
+    background:linear-gradient(180deg, var(--glow), #d9a927);
+    color:#1a1200; border:none; border-radius:12px;
+    padding:14px 24px; font-weight:800; font-size:14px; letter-spacing:1px;
+    cursor:pointer; box-shadow:0 6px 0 #a97a12, 0 10px 20px rgba(0,0,0,0.4);
+    pointer-events:all;
+  }
+  .btn.secondary{ background:linear-gradient(180deg,#3D9BE9,#2b73ad); box-shadow:0 6px 0 #1f5480, 0 10px 20px rgba(0,0,0,0.4); color:#08131a;}
+  .btn:active{ transform:translateY(4px); box-shadow:0 2px 0 #a97a12; }
+  .btn.secondary:active{ box-shadow:0 2px 0 #1f5480; }
+  .hidden{ display:none !important; }
+
+  /* Touch controls */
+  #controls{ position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-end; padding:14px; pointer-events:none; }
+  .pad{ display:flex; gap:8px; pointer-events:all; align-items:flex-end; }
+  .padbtn{
+    width:56px; height:56px; border-radius:14px;
+    background:rgba(28,34,48,0.75); border:1px solid rgba(244,241,234,0.18);
+    display:flex; align-items:center; justify-content:center; font-size:22px; color:var(--ink);
+    backdrop-filter: blur(3px);
+  }
+  .padbtn.active{ background:rgba(242,201,76,0.35); border-color:var(--glow); }
+  .gasbrake{ display:flex; flex-direction:column; gap:8px; }
+  .gasbrake .padbtn{ width:66px; height:52px; }
+  .pgroup{ display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:all; }
+  .pgroup .ptag{ font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:1px; }
+  .pgroup.p1 .ptag{ color:var(--p1); }
+  .pgroup.p2 .ptag{ color:var(--p2); }
+  .pgroup .row{ display:flex; gap:8px; }
+
+  .hint{ position:absolute; bottom:10px; left:50%; transform:translateX(-50%); font-size:12px; color:var(--muted); letter-spacing:0.5px; pointer-events:none; text-align:center; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div class="hud">
+    <div class="chip">
+      <div class="label" id="lap1Label">1-O'YINCHI</div>
+      <div class="value p1" id="lap1Val">0 / 3</div>
+    </div>
+    <div class="chip" id="standingChip">
+      <div class="label" id="lap2Label">2-O'YINCHI</div>
+      <div class="value p2" id="lap2Val">0 / 3</div>
+    </div>
+  </div>
+
+  <div class="countdown hidden" id="countdown"></div>
+
+  <div id="controls" class="hidden">
+    <div class="pgroup p1" id="padP1">
+      <div class="ptag">1-O'YINCHI (WASD)</div>
+      <div class="row">
+        <div class="padbtn" id="p1Left">◀</div>
+        <div class="padbtn" id="p1Right">▶</div>
+        <div class="gasbrake">
+          <div class="padbtn" id="p1Gas">▲</div>
+          <div class="padbtn" id="p1Brake">▼</div>
+        </div>
+      </div>
+    </div>
+    <div class="pgroup p2 hidden" id="padP2">
+      <div class="ptag">2-O'YINCHI (STRELKA)</div>
+      <div class="row">
+        <div class="gasbrake">
+          <div class="padbtn" id="p2Gas">▲</div>
+          <div class="padbtn" id="p2Brake">▼</div>
+        </div>
+        <div class="padbtn" id="p2Left">◀</div>
+        <div class="padbtn" id="p2Right">▶</div>
+      </div>
+    </div>
+  </div>
+  <div class="hint hidden" id="keyHint">Kompyuterda: 1-o'yinchi — W A S D, 2-o'yinchi — strelkalar</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🏁 MASHINA POYGASI</h1>
+    <p>3 aylanani birinchi bo'lib tugating. Yo'ldan chiqib ketsangiz, mashina sekinlashadi. Qanday o'ynaysiz?   O'yin Dilshod Nabiyev tomonidan yaratilgan.  Omad tilayman.</p>
+    <div class="btnrow">
+      <button class="btn" id="startBotBtn">🤖 BOT BILAN</button>
+      <button class="btn secondary" id="startDuelBtn">👥 DO'ST BILAN (SHU QURILMADA)</button>
+    </div>
+  </div>t
+
+  <div class="overlay hidden" id="endOverlay">
+    <h1 id="endTitle">G'ALABA!</h1>
+    <p id="endText"></p>
+    <div class="btnrow">
+      <button class="btn" id="restartBtn">QAYTA O'YNASH</button>
+      <button class="btn secondary" id="menuBtn">MENYU</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  // ---------- Track geometry ----------
+  const LW = 1000, LH = 700, CX = 500, CY = 350;
+  const HS = 200, RAD = 220, TRACK_W = 130, HALF_W = TRACK_W/2;
+
+  function trackPoint(t){
+    t = ((t % 1) + 1) % 1;
+    const straightLen = 2*HS;
+    const curveLen = Math.PI*RAD;
+    const total = 2*straightLen + 2*curveLen;
+    let d = t*total;
+    if (d < straightLen){ return { x: CX-HS+d, y: CY-RAD, angle: 0 }; }
+    d -= straightLen;
+    if (d < curveLen){
+      const theta = -Math.PI/2 + d/RAD;
+      return { x: CX+HS + RAD*Math.cos(theta), y: CY + RAD*Math.sin(theta), angle: theta + Math.PI/2 };
+    }
+    d -= curveLen;
+    if (d < straightLen){ return { x: CX+HS-d, y: CY+RAD, angle: Math.PI }; }
+    d -= straightLen;
+    const theta = Math.PI/2 + d/RAD;
+    return { x: CX-HS + RAD*Math.cos(theta), y: CY + RAD*Math.sin(theta), angle: theta + Math.PI/2 };
+  }
+
+  const N_WP = 400;
+  const WPTS = [];
+  for(let i=0;i<N_WP;i++) WPTS.push(trackPoint(i/N_WP));
+
+  function nearestIndex(x,y){
+    let best=-1, bestD=Infinity;
+    for(let i=0;i<N_WP;i++){
+      const p = WPTS[i];
+      const dx=p.x-x, dy=p.y-y;
+      const d = dx*dx+dy*dy;
+      if (d<bestD){ bestD=d; best=i; }
+    }
+    return { idx: best, dist: Math.sqrt(bestD) };
+  }
+
+  function drawStadiumPath(){
+    ctx.beginPath();
+    ctx.moveTo(CX-HS, CY-RAD);
+    ctx.lineTo(CX+HS, CY-RAD);
+    ctx.arc(CX+HS, CY, RAD, -Math.PI/2, Math.PI/2, false);
+    ctx.lineTo(CX-HS, CY+RAD);
+    ctx.arc(CX-HS, CY, RAD, Math.PI/2, 3*Math.PI/2, false);
+    ctx.closePath();
+  }
+
+  // ---------- Resize ----------
+  let scale=1, offX=0, offY=0;
+  function resize(){
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = w*dpr; canvas.height = h*dpr;
+    canvas.style.width = w+'px'; canvas.style.height = h+'px';
+    scale = Math.min(w/LW, h/LH) * 0.94;
+    offX = (w - LW*scale)/2;
+    offY = (h - LH*scale)/2;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Input ----------
+  const keysP1 = { left:false, right:false, up:false, down:false };
+  const keysP2 = { left:false, right:false, up:false, down:false };
+
+  window.addEventListener('keydown', e=>{
+    if (e.key==='a'||e.key==='A') keysP1.left=true;
+    if (e.key==='d'||e.key==='D') keysP1.right=true;
+    if (e.key==='w'||e.key==='W') keysP1.up=true;
+    if (e.key==='s'||e.key==='S') keysP1.down=true;
+    if (e.key==='ArrowLeft') keysP2.left=true;
+    if (e.key==='ArrowRight') keysP2.right=true;
+    if (e.key==='ArrowUp') keysP2.up=true;
+    if (e.key==='ArrowDown') keysP2.down=true;
+  });
+  window.addEventListener('keyup', e=>{
+    if (e.key==='a'||e.key==='A') keysP1.left=false;
+    if (e.key==='d'||e.key==='D') keysP1.right=false;
+    if (e.key==='w'||e.key==='W') keysP1.up=false;
+    if (e.key==='s'||e.key==='S') keysP1.down=false;
+    if (e.key==='ArrowLeft') keysP2.left=false;
+    if (e.key==='ArrowRight') keysP2.right=false;
+    if (e.key==='ArrowUp') keysP2.up=false;
+    if (e.key==='ArrowDown') keysP2.down=false;
+  });
+
+  function bindPad(id, keysObj, key){
+    const el = document.getElementById(id);
+    const on = (e)=>{ e.preventDefault(); keysObj[key]=true; el.classList.add('active'); };
+    const off = (e)=>{ e.preventDefault(); keysObj[key]=false; el.classList.remove('active'); };
+    el.addEventListener('pointerdown', on);
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointerleave', off);
+    el.addEventListener('pointercancel', off);
+  }
+  bindPad('p1Left', keysP1, 'left');
+  bindPad('p1Right', keysP1, 'right');
+  bindPad('p1Gas', keysP1, 'up');
+  bindPad('p1Brake', keysP1, 'down');
+  bindPad('p2Left', keysP2, 'left');
+  bindPad('p2Right', keysP2, 'right');
+  bindPad('p2Gas', keysP2, 'up');
+  bindPad('p2Brake', keysP2, 'down');
+
+  const isTouch = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  if (!isTouch) document.getElementById('keyHint').classList.remove('hidden');
+
+  // ---------- Game state ----------
+  const TOTAL_LAPS = 3;
+  let mode = 'bot'; // 'bot' | 'duel'
+  let state = 'idle';
+  let carA, carB, winner=null, raceTime=0;
+
+  function makeCar(startT, lateral, color){
+    const p = trackPoint(startT);
+    const nx = Math.cos(p.angle + Math.PI/2), ny = Math.sin(p.angle + Math.PI/2);
+    return { x: p.x + nx*lateral, y: p.y + ny*lateral, angle: p.angle, speed: 0, lap: 0, lastIdx: 0, color };
+  }
+
+  function resetRace(){
+    carA = makeCar(0.015, -22, '#E63946'); // player 1 / player
+    if (mode==='bot'){
+      carB = makeCar(0.015, 22, '#3D9BE9');
+      carB.t = 0.015; carB.weave = Math.random()*10;
+    } else {
+      carB = makeCar(0.015, 22, '#3D9BE9'); // player 2
+    }
+    winner = null; raceTime = 0;
+    updateHUD();
+  }
+
+  function updateHUD(){
+    document.getElementById('lap1Val').textContent = Math.min(carA.lap,TOTAL_LAPS) + ' / ' + TOTAL_LAPS;
+    document.getElementById('lap2Val').textContent = Math.min(carB.lap,TOTAL_LAPS) + ' / ' + TOTAL_LAPS;
+    document.getElementById('lap1Label').textContent = mode==='bot' ? 'SIZ' : "1-O'YINCHI";
+    document.getElementById('lap2Label').textContent = mode==='bot' ? 'BOT' : "2-O'YINCHI";
+  }
+
+  // ---------- Physics ----------
+  const MAX_SPEED = 260, MAX_REV = -90, ACCEL = 220, BRAKE = 320, FRICTION = 140, TURN_RATE = 2.6;
+
+  function updateCarPhysics(car, keys, dt){
+    if (keys.up) car.speed += ACCEL*dt;
+    else if (keys.down) car.speed -= BRAKE*dt;
+    else {
+      if (car.speed > 0) car.speed = Math.max(0, car.speed - FRICTION*dt);
+      else if (car.speed < 0) car.speed = Math.min(0, car.speed + FRICTION*dt);
+    }
+    car.speed = Math.max(MAX_REV, Math.min(MAX_SPEED, car.speed));
+
+    const steerPower = Math.max(-1,Math.min(1, car.speed/90));
+    if (keys.left) car.angle -= TURN_RATE*dt*steerPower;
+    if (keys.right) car.angle += TURN_RATE*dt*steerPower;
+
+    car.x += Math.cos(car.angle)*car.speed*dt;
+    car.y += Math.sin(car.angle)*car.speed*dt;
+
+    const { idx, dist } = nearestIndex(car.x, car.y);
+    if (dist > HALF_W) car.speed *= (1 - Math.min(0.9, dt*3));
+
+    const prevIdx = car.lastIdx || 0;
+    if (prevIdx > N_WP*0.85 && idx < N_WP*0.15 && car.speed > 0) car.lap += 1;
+    car.lastIdx = idx;
+  }
+
+  function updateBot(car, dt){
+    const baseSpeed = 0.085 + Math.sin(raceTime*0.6 + car.weave)*0.01;
+    car.t += baseSpeed*dt;
+    if (car.t >= 1){ car.t -= 1; car.lap += 1; }
+    const p = trackPoint(car.t);
+    const nx = Math.cos(p.angle+Math.PI/2), ny = Math.sin(p.angle+Math.PI/2);
+    const wob = Math.sin(raceTime*1.4 + car.weave)*10;
+    car.x = p.x + nx*wob; car.y = p.y + ny*wob; car.angle = p.angle;
+  }
+
+  function checkFinish(){
+    if (winner) return;
+    if (carA.lap >= TOTAL_LAPS){ winner='A'; endRace(); }
+    else if (carB.lap >= TOTAL_LAPS){ winner='B'; endRace(); }
+  }
+
+  function endRace(){
+    state='finished';
+    document.getElementById('controls').classList.add('hidden');
+    const title = document.getElementById('endTitle');
+    const text = document.getElementById('endText');
+    if (mode==='bot'){
+      if (winner==='A'){ title.textContent = "🏆 G'ALABA QOZONDINGIZ!"; text.textContent = "Botni ortda qoldirdingiz. Zo'r poyga edi!"; }
+      else { title.textContent = "😅 BOT G'OLIB BO'LDI"; text.textContent = "Bu safar bot tezroq yurdi. Yana urinib ko'ring!"; }
+    } else {
+      if (winner==='A'){ title.textContent = "🏆 1-O'YINCHI G'OLIB!"; text.textContent = "Qizil mashina birinchi bo'lib finishga yetdi!"; }
+      else { title.textContent = "🏆 2-O'YINCHI G'OLIB!"; text.textContent = "Ko'k mashina birinchi bo'lib finishga yetdi!"; }
+    }
+    document.getElementById('endOverlay').classList.remove('hidden');
+  }
+
+  // ---------- Render ----------
+  function drawCar(car, glow){
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+    ctx.shadowColor = car.color;
+    ctx.shadowBlur = glow ? 14 : 8;
+    ctx.fillStyle = car.color;
+    ctx.beginPath();
+    const L=24, W=13;
+    ctx.moveTo(L*0.55,0);
+    ctx.lineTo(-L*0.45,-W*0.5);
+    ctx.lineTo(-L*0.55,-W*0.5);
+    ctx.lineTo(-L*0.55, W*0.5);
+    ctx.lineTo(-L*0.45, W*0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(L*0.05,-W*0.32,7,W*0.64);
+    ctx.restore();
+  }
+
+  function render(){
+    ctx.save();
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr*scale,0,0,dpr*scale, offX*dpr, offY*dpr);
+
+    drawStadiumPath();
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.strokeStyle = '#2b3350'; ctx.lineWidth = TRACK_W+16; ctx.stroke();
+
+    drawStadiumPath();
+    ctx.strokeStyle = '#1C2230'; ctx.lineWidth = TRACK_W; ctx.stroke();
+
+    drawStadiumPath();
+    ctx.setLineDash([18,16]);
+    ctx.strokeStyle = 'rgba(242,201,76,0.55)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash([]);
+
+    const fp = trackPoint(0.0);
+    ctx.save();
+    ctx.translate(fp.x, fp.y);
+    const cols=2, rows=6, cw=(HALF_W*2)/rows, ch=6;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      ctx.fillStyle = (r+c)%2===0 ? '#F4F1EA' : '#1a1a1a';
+      ctx.fillRect(-ch/2 + c*ch, -HALF_W + r*cw, ch, cw);
+    }
+    ctx.restore();
+
+    drawCar(carB, mode==='duel');
+    drawCar(carA, true);
+
+    ctx.restore();
+  }
+
+  // ---------- Main loop ----------
+  let lastT=null;
+  function frame(ts){
+    if (lastT===null) lastT=ts;
+    let dt = Math.min((ts-lastT)/1000, 0.033);
+    lastT = ts;
+
+    if (state==='racing'){
+      raceTime += dt;
+      updateCarPhysics(carA, keysP1, dt);
+      if (mode==='bot') updateBot(carB, dt);
+      else updateCarPhysics(carB, keysP2, dt);
+      updateHUD();
+      checkFinish();
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Flow ----------
+  function startCountdown(){
+    resetRace();
+    state='countdown';
+    const el = document.getElementById('countdown');
+    el.classList.remove('hidden');
+    const seq = ['3','2','1','KETDIK!'];
+    let i=0; el.textContent = seq[i];
+    const iv = setInterval(()=>{
+      i++;
+      if (i>=seq.length){
+        clearInterval(iv);
+        el.classList.add('hidden');
+        state='racing';
+        if (isTouch) document.getElementById('controls').classList.remove('hidden');
+        return;
+      }
+      el.textContent = seq[i];
+    }, 700);
+  }
+
+  function goToMode(m){
+    mode = m;
+    document.getElementById('padP2').classList.toggle('hidden', mode!=='duel');
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('endOverlay').classList.add('hidden');
+    startCountdown();
+  }
+
+  document.getElementById('startBotBtn').addEventListener('click', ()=>goToMode('bot'));
+  document.getElementById('startDuelBtn').addEventListener('click', ()=>goToMode('duel'));
+  document.getElementById('restartBtn').addEventListener('click', ()=>{
+    document.getElementById('endOverlay').classList.add('hidden');
+    startCountdown();
+  });
+  document.getElementById('menuBtn').addEventListener('click', ()=>{
+    document.getElementById('endOverlay').classList.add('hidden');
+    document.getElementById('controls').classList.add('hidden');
+    state='idle';
+    document.getElementById('startOverlay').classList.remove('hidden');
+  });
+
+  resetRace();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
