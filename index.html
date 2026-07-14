@@ -313,7 +313,7 @@
   }
 
   // ---------- Physics ----------
-  const MAX_SPEED = 260, MAX_REV = -90, ACCEL = 220, BRAKE = 320, FRICTION = 140, TURN_RATE = 2.6;
+  const MAX_SPEED = 330, MAX_REV = -110, ACCEL = 260, BRAKE = 360, FRICTION = 150, TURN_RATE = 2.6;
 
   function updateCarPhysics(car, keys, dt){
     if (keys.up) car.speed += ACCEL*dt;
@@ -345,7 +345,7 @@
   }
 
   function updateBot(car, dt){
-    const speeds = { easy: 0.062, medium: 0.085, hard: 0.112 };
+    const speeds = { easy: 0.062, medium: 0.085, hard: 0.148 };
     const base = speeds[botDifficulty] || speeds.medium;
     const baseSpeed = base + Math.sin(raceTime*0.6 + car.weave)*0.01;
     car.t += baseSpeed*dt;
