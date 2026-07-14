@@ -135,12 +135,25 @@
 
   <div class="overlay" id="startOverlay">
     <h1>🏁 MASHINA POYGASI</h1>
-    <p>3 aylanani birinchi bo'lib tugating. Yo'ldan chiqib ketsangiz, mashina sekinlashadi. Qanday o'ynaysiz?   O'yin Dilshod Nabiyev tomonidan yaratilgan.  Omad tilayman.</p>
+    <p>3 aylanani birinchi bo'lib tugating. Yo'ldan chiqib ketsangiz, mashina sekinlashadi. Qanday o'ynaysiz?</p>
     <div class="btnrow">
       <button class="btn" id="startBotBtn">🤖 BOT BILAN</button>
       <button class="btn secondary" id="startDuelBtn">👥 DO'ST BILAN (SHU QURILMADA)</button>
     </div>
-  </div>t
+  </div>
+
+  <div class="overlay hidden" id="botDiffOverlay">
+    <h1>🤖 BOT QIYINLIGI</h1>
+    <p>Botning tezligini tanlang.</p>
+    <div class="btnrow">
+      <button class="btn" data-bdiff="easy">OSON</button>
+      <button class="btn" data-bdiff="medium">O'RTACHA</button>
+      <button class="btn" data-bdiff="hard">JUDA QIYIN</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn secondary" id="botDiffBack">ORQAGA</button>
+    </div>
+  </div>
 
   <div class="overlay hidden" id="endOverlay">
     <h1 id="endTitle">G'ALABA!</h1>
@@ -224,20 +237,20 @@
   const keysP2 = { left:false, right:false, up:false, down:false };
 
   window.addEventListener('keydown', e=>{
-    if (e.key==='a'||e.key==='A') keysP1.left=true;
-    if (e.key==='d'||e.key==='D') keysP1.right=true;
-    if (e.key==='w'||e.key==='W') keysP1.up=true;
-    if (e.key==='s'||e.key==='S') keysP1.down=true;
+    if (e.code==='KeyA') keysP1.left=true;
+    if (e.code==='KeyD') keysP1.right=true;
+    if (e.code==='KeyW') keysP1.up=true;
+    if (e.code==='KeyS') keysP1.down=true;
     if (e.key==='ArrowLeft') keysP2.left=true;
     if (e.key==='ArrowRight') keysP2.right=true;
     if (e.key==='ArrowUp') keysP2.up=true;
     if (e.key==='ArrowDown') keysP2.down=true;
   });
   window.addEventListener('keyup', e=>{
-    if (e.key==='a'||e.key==='A') keysP1.left=false;
-    if (e.key==='d'||e.key==='D') keysP1.right=false;
-    if (e.key==='w'||e.key==='W') keysP1.up=false;
-    if (e.key==='s'||e.key==='S') keysP1.down=false;
+    if (e.code==='KeyA') keysP1.left=false;
+    if (e.code==='KeyD') keysP1.right=false;
+    if (e.code==='KeyW') keysP1.up=false;
+    if (e.code==='KeyS') keysP1.down=false;
     if (e.key==='ArrowLeft') keysP2.left=false;
     if (e.key==='ArrowRight') keysP2.right=false;
     if (e.key==='ArrowUp') keysP2.up=false;
@@ -268,13 +281,16 @@
   // ---------- Game state ----------
   const TOTAL_LAPS = 3;
   let mode = 'bot'; // 'bot' | 'duel'
+  let botDifficulty = 'medium';
   let state = 'idle';
   let carA, carB, winner=null, raceTime=0;
 
   function makeCar(startT, lateral, color){
     const p = trackPoint(startT);
     const nx = Math.cos(p.angle + Math.PI/2), ny = Math.sin(p.angle + Math.PI/2);
-    return { x: p.x + nx*lateral, y: p.y + ny*lateral, angle: p.angle, speed: 0, lap: 0, lastIdx: 0, color };
+    const x = p.x + nx*lateral, y = p.y + ny*lateral;
+    const { idx } = nearestIndex(x, y);
+    return { x, y, angle: p.angle, speed: 0, lap: 0, lastIdx: idx, progress: 0, color };
   }
 
   function resetRace(){
@@ -318,13 +334,20 @@
     const { idx, dist } = nearestIndex(car.x, car.y);
     if (dist > HALF_W) car.speed *= (1 - Math.min(0.9, dt*3));
 
-    const prevIdx = car.lastIdx || 0;
-    if (prevIdx > N_WP*0.85 && idx < N_WP*0.15 && car.speed > 0) car.lap += 1;
+    // Track true accumulated progress around the track (handles wraparound both ways),
+    // so reversing near the finish line no longer creates a false extra lap.
+    let delta = idx - car.lastIdx;
+    if (delta > N_WP/2) delta -= N_WP;
+    if (delta < -N_WP/2) delta += N_WP;
+    car.progress += delta;
     car.lastIdx = idx;
+    car.lap = Math.max(0, Math.floor(car.progress / N_WP));
   }
 
   function updateBot(car, dt){
-    const baseSpeed = 0.085 + Math.sin(raceTime*0.6 + car.weave)*0.01;
+    const speeds = { easy: 0.062, medium: 0.085, hard: 0.112 };
+    const base = speeds[botDifficulty] || speeds.medium;
+    const baseSpeed = base + Math.sin(raceTime*0.6 + car.weave)*0.01;
     car.t += baseSpeed*dt;
     if (car.t >= 1){ car.t -= 1; car.lap += 1; }
     const p = trackPoint(car.t);
@@ -457,7 +480,21 @@
     startCountdown();
   }
 
-  document.getElementById('startBotBtn').addEventListener('click', ()=>goToMode('bot'));
+  document.getElementById('startBotBtn').addEventListener('click', ()=>{
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('botDiffOverlay').classList.remove('hidden');
+  });
+  document.querySelectorAll('#botDiffOverlay .btn[data-bdiff]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      botDifficulty = btn.getAttribute('data-bdiff');
+      document.getElementById('botDiffOverlay').classList.add('hidden');
+      goToMode('bot');
+    });
+  });
+  document.getElementById('botDiffBack').addEventListener('click', ()=>{
+    document.getElementById('botDiffOverlay').classList.add('hidden');
+    document.getElementById('startOverlay').classList.remove('hidden');
+  });
   document.getElementById('startDuelBtn').addEventListener('click', ()=>goToMode('duel'));
   document.getElementById('restartBtn').addEventListener('click', ()=>{
     document.getElementById('endOverlay').classList.add('hidden');
